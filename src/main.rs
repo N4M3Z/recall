@@ -17,7 +17,7 @@ struct Cli {
     #[arg(long, global = true)]
     reindex: bool,
 
-    /// Initial search query (for interactive TUI mode)
+    /// Initial search query and optional resume args after -- (for interactive TUI mode)
     #[arg(trailing_var_arg = true)]
     query: Vec<String>,
 }
@@ -90,7 +90,16 @@ enum Command {
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    // Split raw args on "--" before clap sees them.
+    // clap consumes "--" internally, so we intercept first:
+    // everything before "--" goes to clap, everything after becomes resume_args.
+    let raw_args: Vec<String> = std::env::args().collect();
+    let (clap_args, resume_args) = match raw_args.iter().rposition(|s| s == "--") {
+        Some(pos) => (raw_args[..pos].to_vec(), raw_args[pos + 1..].to_vec()),
+        None => (raw_args, Vec::new()),
+    };
+
+    let cli = Cli::parse_from(clap_args);
 
     // Handle --reindex
     if cli.reindex {
@@ -135,7 +144,7 @@ fn main() -> Result<()> {
         None => {
             // Interactive TUI mode
             let initial_query = cli.query.join(" ");
-            run_tui(initial_query)
+            run_tui(initial_query, resume_args)
         }
     }
 }
@@ -149,9 +158,10 @@ fn parse_source(source: &Option<String>) -> Result<Option<SessionSource>> {
     }
 }
 
-fn run_tui(initial_query: String) -> Result<()> {
+fn run_tui(initial_query: String, resume_args: Vec<String>) -> Result<()> {
     // Initialize app (starts background indexing automatically)
     let mut app = App::new(initial_query)?;
+    app.resume_args = resume_args;
 
     // Initialize terminal
     let mut terminal = tui::init()?;
@@ -170,7 +180,7 @@ fn run_tui(initial_query: String) -> Result<()> {
 
     // Handle post-exit actions
     if let Some(session) = app.should_resume {
-        resume_session(&session)?;
+        resume_session(&session, &app.resume_args)?;
     } else if let Some(session_id) = app.should_copy {
         copy_to_clipboard(&session_id)?;
         println!("Copied session ID: {}", session_id);
@@ -267,7 +277,7 @@ fn run(terminal: &mut tui::Tui, app: &mut App) -> Result<()> {
 
 /// Resume a session by exec'ing into the appropriate CLI
 #[cfg(unix)]
-fn resume_session(session: &session::Session) -> Result<()> {
+fn resume_session(session: &session::Session, extra_args: &[String]) -> Result<()> {
     use std::os::unix::process::CommandExt;
 
     // Change to conversation's working directory
@@ -275,7 +285,8 @@ fn resume_session(session: &session::Session) -> Result<()> {
         let _ = std::env::set_current_dir(&session.cwd);
     }
 
-    let (program, args) = session.resume_command();
+    let (program, mut args) = session.resume_command();
+    args.extend(extra_args.iter().cloned());
 
     // This replaces the current process - never returns on success
     let err = std::process::Command::new(&program).args(&args).exec();
@@ -285,13 +296,14 @@ fn resume_session(session: &session::Session) -> Result<()> {
 }
 
 #[cfg(not(unix))]
-fn resume_session(session: &session::Session) -> Result<()> {
+fn resume_session(session: &session::Session, extra_args: &[String]) -> Result<()> {
     // Change to conversation's working directory
     if !session.cwd.is_empty() {
         let _ = std::env::set_current_dir(&session.cwd);
     }
 
-    let (program, args) = session.resume_command();
+    let (program, mut args) = session.resume_command();
+    args.extend(extra_args.iter().cloned());
 
     // On non-Unix, just spawn the process
     std::process::Command::new(&program)

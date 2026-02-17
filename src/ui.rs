@@ -549,18 +549,28 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(spans)
     };
 
-    let sessions_count = Span::styled(
+    let mut right_spans = Vec::new();
+    if !app.resume_args.is_empty() {
+        right_spans.push(Span::styled(
+            format!(" +{} args ", app.resume_args.len()),
+            Style::default().fg(t.match_fg),
+        ));
+        right_spans.push(Span::styled(" │ ", dim));
+    }
+    right_spans.push(Span::styled(
         format!(" {} sessions", app.total_sessions),
         dim,
-    );
+    ));
+    let right_line = Line::from(right_spans);
+    let right_width: u16 = right_line.spans.iter().map(|s| s.width() as u16).sum();
 
     let layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(0), Constraint::Length(sessions_count.width() as u16)])
+        .constraints([Constraint::Min(0), Constraint::Length(right_width)])
         .split(area);
 
     frame.render_widget(Paragraph::new(hints), layout[0]);
-    frame.render_widget(Paragraph::new(sessions_count), layout[1]);
+    frame.render_widget(Paragraph::new(right_line), layout[1]);
 }
 
 /// Find the wrapped line index that contains the given fragment.

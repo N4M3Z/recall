@@ -60,6 +60,18 @@ No MCP required. The `recall search` CLI fulfills the same purpose. See [Ask it 
 
 ## Customize
 
+### Extra arguments
+
+Pass extra arguments to the resumed CLI using `--`:
+```bash
+recall -- --plugin-dir /path/to/plugin
+recall my search query -- --plugin-dir /path --verbose
+```
+
+When you select a session and press Enter, the extra arguments are appended to the resume command (e.g., `claude --resume <id> --plugin-dir /path/to/plugin`).
+
+### Environment variables
+
 recall's resume commands can be configured with environment variables.
 
 For example, to resume conversations in YOLO mode, add this to your `.bashrc` or `.zshrc`:

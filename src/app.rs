@@ -83,6 +83,8 @@ pub struct App {
     last_input: Instant,
     /// Error from indexing thread (shown on exit)
     pub index_error: Option<String>,
+    /// Extra arguments to append to the resume command (from -- passthrough)
+    pub resume_args: Vec<String>,
 }
 
 impl App {
@@ -144,6 +146,7 @@ impl App {
             search_pending: false,
             last_input: Instant::now(),
             index_error: None,
+            resume_args: Vec::new(),
         };
 
         // If there's an initial query, run the search immediately
@@ -656,6 +659,7 @@ mod tests {
             search_pending: false,
             last_input: Instant::now(),
             index_error: None,
+            resume_args: Vec::new(),
         }
     }
 
